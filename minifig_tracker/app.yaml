@@ -1,16 +1,5 @@
-# app.yaml: The main configuration file for the Arduino App.
-
-# The user-visible name of the application.
-name: minifig_tracker
-
-# Short description shown in App Lab.
-description: "Shows the green minifig's camera position as a dot on the LED matrix (data arrives over MQTT)."
-
-# The icon for the application, can be an emoji or a short string.
+name: Minifig Tracker
 icon: 🟢
-
-# A list of network ports that the application exposes.
+description: Subscribes to MQTT ME193/ceci/green and shows the minifig's x/y position as a single dot on the LED matrix.
 ports: []
-
-# A list of bricks used by this application (none needed: MQTT is plain Python).
 bricks: []

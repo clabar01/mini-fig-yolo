@@ -1,55 +1,51 @@
-// minifig_tracker - MCU side (Phase 1)
-//
-// This sketch only owns the LED matrix. It does NOT know anything about
-// MQTT, JSON, or the camera: the Python side decides which LED to light
-// and calls the functions below over the Bridge.
-//
-// Matrix size comes from the Arduino_LED_Matrix library / official
-// "LED Matrix Frame" example: 8 rows x 13 columns = 104 LEDs.
-// The frame buffer is row-major: index = row * 13 + col,
-// with row 0 at the top and col 0 at the left.
+// minifig_tracker: draws a single dot on the 8x13 LED matrix.
+// Python owns MQTT and scaling; this sketch only exposes two Bridge providers:
+//  - "show_dot"     (col, row) -> lights exactly one pixel
+//  - "clear_matrix" ()         -> turns every pixel off
 
 #include <Arduino_RouterBridge.h>
 #include <Arduino_LED_Matrix.h>
+#include <zephyr/kernel.h>
+
+// Dimensions from Arduino_LED_Matrix.h (canvasWidth = 13, canvasHeight = 8).
+static const int MATRIX_COLS = 13;
+static const int MATRIX_ROWS = 8;
+static const uint8_t DOT_BRIGHTNESS = 7;  // 3-bit grayscale: 0..7
 
 Arduino_LED_Matrix matrix;
 
-const uint8_t FRAME_ROWS = 8;
-const uint8_t FRAME_COLS = 13;
-const uint8_t FRAME_SIZE = FRAME_ROWS * FRAME_COLS;  // 104
+// Bridge providers run on a separate thread; serialize matrix writes.
+K_MUTEX_DEFINE(matrix_mtx);
 
-const uint8_t DOT_BRIGHTNESS = 7;  // max brightness with 3 grayscale bits (0-7)
+static uint8_t frame[MATRIX_ROWS * MATRIX_COLS];  // row-major, one byte per pixel
 
-uint8_t frame[FRAME_SIZE] = {0};   // what the matrix shows; all zeros = blank
+void show_dot(int col, int row) {
+  if (col < 0 || col >= MATRIX_COLS || row < 0 || row >= MATRIX_ROWS) return;
 
-// Called from Python: light exactly one LED at (row, col), turn all others off.
-void show_dot(int row, int col) {
-    // Ignore out-of-range values instead of writing past the buffer.
-    if (row < 0 || row >= FRAME_ROWS || col < 0 || col >= FRAME_COLS) {
-        return;
-    }
-    memset(frame, 0, FRAME_SIZE);
-    frame[row * FRAME_COLS + col] = DOT_BRIGHTNESS;
+  k_mutex_lock(&matrix_mtx, K_FOREVER);
+  memset(frame, 0, sizeof(frame));
+  frame[row * MATRIX_COLS + col] = DOT_BRIGHTNESS;
+  matrix.draw(frame);
+  k_mutex_unlock(&matrix_mtx);
 }
 
-// Called from Python: turn every LED off.
-void clear_dot() {
-    memset(frame, 0, FRAME_SIZE);
+void clear_matrix() {
+  k_mutex_lock(&matrix_mtx, K_FOREVER);
+  memset(frame, 0, sizeof(frame));
+  matrix.draw(frame);
+  k_mutex_unlock(&matrix_mtx);
 }
 
 void setup() {
-    matrix.begin();
-    matrix.setGrayscaleBits(3);  // brightness values 0-7
-    matrix.clear();
+  matrix.begin();
+  matrix.setGrayscaleBits(3);
+  matrix.clear();
 
-    Bridge.begin();              // required for any Bridge communication
-    Bridge.provide("show_dot", show_dot);
-    Bridge.provide("clear_dot", clear_dot);
+  Bridge.begin();
+  Bridge.provide("show_dot", show_dot);
+  Bridge.provide("clear_matrix", clear_matrix);
 }
 
 void loop() {
-    // Same pattern as Arduino's official LED matrix example: the Bridge
-    // handlers only edit the buffer, and loop() pushes it to the matrix.
-    matrix.draw(frame);
-    delay(10);
+  delay(10);
 }
