@@ -1,0 +1,5 @@
+name: Motor Test
+icon: 🚗
+description: Wiring check for the car - forward 1 s, stop, backward 1 s, stop.
+ports: []
+bricks: []

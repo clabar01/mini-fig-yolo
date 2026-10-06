@@ -74,8 +74,10 @@ def main():
             result = model(frame, verbose=False)[0]
             best = best_detection_per_class(result, names)
 
-            # Vertical line marking the center of the image (the stop target)
-            cv2.line(frame, (w // 2, 0), (w // 2, h), (255, 255, 255), 1)
+            # Vertical line per car marking its stop target (must match TARGET_X in each sketch)
+            for name, line_x in {"green-minifig": 0.2, "blue-minifig": 0.8}.items():
+                px = int(line_x * w)
+                cv2.line(frame, (px, 0), (px, h), COLORS[name], 2)
 
             messages = {}
             for name, topic in TOPICS.items():
